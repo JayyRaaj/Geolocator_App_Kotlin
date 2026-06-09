@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.weatherapp.data.model.NetworkResult
 import com.example.weatherapp.data.repository.WeatherRepository
 import com.example.weatherapp.data.repository.WeatherRepositoryImpl
+import com.example.weatherapp.util.PrefsHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,14 +18,19 @@ import kotlinx.coroutines.launch
  * ViewModel for the weather feature.
  *
  * Survives configuration changes and owns all UI-related state.
- * The UI layer never talks to the repository directly — only through here.
+ * The UI layer never talks to the repository or prefs directly — only through here.
  *
- * @param repository Data source. Injected so the ViewModel can be tested with a fake.
+ * On construction it auto-loads the last searched city from [PrefsHelper] so the
+ * user sees their previous result immediately on every launch.
  *
- * TODO: ideally the repository would be injected via Hilt's @HiltViewModel, but keeping it simple for now.
+ * @param repository  Data source. Injected so the ViewModel can be tested with a fake.
+ * @param prefsHelper Persistence for the last city. Injected for the same reason.
+ *
+ * TODO: ideally both params would be injected via Hilt's @HiltViewModel, but keeping it simple for now.
  */
 class WeatherViewModel(
-    private val repository: WeatherRepository
+    private val repository: WeatherRepository,
+    private val prefsHelper: PrefsHelper
 ) : ViewModel() {
 
     // --- UI state -----------------------------------------------------------------
@@ -48,7 +54,7 @@ class WeatherViewModel(
 
     /**
      * Tracks the most recent search so [retry] can replay it exactly.
-     * Sealed so we know whether to re-search by city or by coordinates.
+     * Sealed so we distinguish city-name searches from coordinate searches.
      */
     private sealed class LastSearch {
         data class ByCity(val city: String) : LastSearch()
@@ -56,6 +62,18 @@ class WeatherViewModel(
     }
 
     private var lastSearch: LastSearch? = null
+
+    // --- Auto-load on construction ------------------------------------------------
+
+    init {
+        // If the user has searched before, restore their last city immediately.
+        // GPS auto-load (Step 14) fires from the Activity after this and will
+        // overwrite this result if location permission is granted — that's intentional.
+        val savedCity = prefsHelper.loadLastCity()
+        if (savedCity != null) {
+            searchByCity(savedCity)
+        }
+    }
 
     // --- Public actions -----------------------------------------------------------
 
@@ -70,10 +88,11 @@ class WeatherViewModel(
     /**
      * Kicks off a city-name weather search.
      *
-     * Trims whitespace and silently ignores blank input so the UI doesn't
-     * need to guard against accidental empty submissions.
+     * On success, persists the API-returned city name to [PrefsHelper] so it can
+     * be restored on the next launch. The API-normalised name is saved (not the
+     * raw user input) to ensure consistent casing across sessions.
      *
-     * @param city City name (e.g. "Tokyo"). Defaults to the current [searchQuery] value
+     * @param city City name (e.g. "Tokyo"). Defaults to the current [searchQuery]
      *             so callers that auto-load a saved city don't have to touch the field.
      */
     fun searchByCity(city: String = _searchQuery.value) {
@@ -86,7 +105,12 @@ class WeatherViewModel(
         viewModelScope.launch {
             _uiState.value = WeatherUiState.Loading
             _uiState.value = when (val result = repository.getWeatherByCity(trimmed)) {
-                is NetworkResult.Success -> WeatherUiState.Success(result.data)
+                is NetworkResult.Success -> {
+                    // Persist the API-returned name, not the raw typed input,
+                    // so "london" gets saved as "London".
+                    prefsHelper.saveLastCity(result.data.cityName)
+                    WeatherUiState.Success(result.data)
+                }
                 is NetworkResult.Error   -> WeatherUiState.Error(result.message)
                 is NetworkResult.Loading -> WeatherUiState.Loading // repository never emits this
             }
@@ -96,6 +120,9 @@ class WeatherViewModel(
     /**
      * Kicks off a coordinate-based weather lookup.
      * Called after a successful GPS fix from [com.example.weatherapp.util.LocationHelper].
+     *
+     * Does not save to prefs — coordinates are not a stable "city name" the user
+     * typed, so restoring them on next launch would be confusing.
      *
      * @param lat Latitude in decimal degrees.
      * @param lon Longitude in decimal degrees.
@@ -121,7 +148,7 @@ class WeatherViewModel(
         when (val last = lastSearch) {
             is LastSearch.ByCity        -> searchByCity(last.city)
             is LastSearch.ByCoordinates -> searchByCoordinates(last.lat, last.lon)
-            null                        -> { /* no previous search to replay */ }
+            null                        -> { /* nothing to replay */ }
         }
     }
 
@@ -148,11 +175,10 @@ class WeatherViewModel(
     companion object {
         /**
          * [ViewModelProvider.Factory] that constructs a [WeatherViewModel] wired to the
-         * live repository.
+         * live repository and prefs.
          *
          * Uses [CreationExtras] + [APPLICATION_KEY] to get the Application context without
-         * making WeatherViewModel extend AndroidViewModel — keeps the ViewModel pure and
-         * easier to test.
+         * extending AndroidViewModel — keeps the ViewModel pure and easier to test.
          *
          * TODO: replace with @HiltViewModel + hiltViewModel() when DI is added.
          */
@@ -163,7 +189,10 @@ class WeatherViewModel(
                     "WeatherViewModel.Factory requires APPLICATION_KEY in CreationExtras"
                 }
                 if (modelClass.isAssignableFrom(WeatherViewModel::class.java)) {
-                    return WeatherViewModel(WeatherRepositoryImpl.create(application)) as T
+                    return WeatherViewModel(
+                        repository  = WeatherRepositoryImpl.create(application),
+                        prefsHelper = PrefsHelper(application)
+                    ) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
