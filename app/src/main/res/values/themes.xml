@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Minimal XML theme — actual UI theming is handled in Compose via MaterialTheme.
+        NoActionBar prevents a duplicate action bar on top of the Compose scaffold.
+    -->
+    <style name="Theme.WeatherApp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>
