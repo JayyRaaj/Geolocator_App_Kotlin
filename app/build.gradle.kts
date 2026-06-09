@@ -61,6 +61,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    // Extended icon set for location, weather, and search icons
+    implementation("androidx.compose.material:material-icons-extended")
 
     // ViewModel + Compose integration
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
