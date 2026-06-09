@@ -63,19 +63,21 @@ class WeatherViewModel(
 
     private var lastSearch: LastSearch? = null
 
-    // --- Auto-load on construction ------------------------------------------------
+    // --- Public actions -----------------------------------------------------------
 
-    init {
-        // If the user has searched before, restore their last city immediately.
-        // GPS auto-load (Step 14) fires from the Activity after this and will
-        // overwrite this result if location permission is granted — that's intentional.
+    /**
+     * Loads the last city saved in [PrefsHelper] and triggers a weather search for it.
+     *
+     * Called by the Activity at startup when GPS permission is not available (or as a
+     * fallback when a GPS fix couldn't be obtained). Does nothing if no city was
+     * previously saved — the user just sees the empty search screen.
+     */
+    fun autoLoadLastCity() {
         val savedCity = prefsHelper.loadLastCity()
         if (savedCity != null) {
             searchByCity(savedCity)
         }
     }
-
-    // --- Public actions -----------------------------------------------------------
 
     /**
      * Updates the search field text. Called on every keystroke from the UI.

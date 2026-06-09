@@ -72,8 +72,28 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // GPS auto-load on first launch is wired up in Step 14.
-        // Last-city auto-load on launch is wired up in Step 13.
+        triggerAutoLoad()
+    }
+
+    /**
+     * Decides which auto-load to run on startup, in priority order:
+     *
+     *  1. GPS permission already granted → try to get a location fix and search by
+     *     coordinates. If the fix fails (services off, no signal), fall back to the
+     *     last saved city so the screen isn't left blank.
+     *  2. No GPS permission → load the last saved city directly.
+     *  3. No saved city either → do nothing; the user sees the empty search screen.
+     *
+     * GPS takes priority because it's more accurate and up-to-date than a saved city
+     * from a previous session. The fallback ensures the user always sees *something*
+     * useful if GPS is unavailable.
+     */
+    private fun triggerAutoLoad() {
+        if (locationHelper.hasLocationPermission()) {
+            loadWeatherForCurrentLocation()
+        } else {
+            viewModel.autoLoadLastCity()
+        }
     }
 
     /**
@@ -90,22 +110,29 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Fetches the device's current location and triggers a weather search.
+     * Fetches the device's current location and triggers a weather search by coordinates.
      *
-     * Called either after the permission grant result (Step 14), or directly if
-     * permission is already held when the app launches.
+     * If [LocationHelper.getCurrentLocation] returns null (location services disabled,
+     * no GPS fix indoors, etc.), falls back to the last saved city so the user always
+     * sees something useful rather than a blank screen.
      *
-     * Internal visibility so it can also be called from [WeatherApp] callbacks
-     * in tests without going through the permission launcher.
+     * Called from:
+     *  - [triggerAutoLoad] on launch when GPS permission is already held.
+     *  - [locationPermissionLauncher] result callback when the user grants permission.
+     *
+     * Internal visibility so it can also be invoked from tests without going
+     * through the permission launcher.
      */
     internal fun loadWeatherForCurrentLocation() {
         lifecycleScope.launch {
             val location = locationHelper.getCurrentLocation()
             if (location != null) {
                 viewModel.searchByCoordinates(location.latitude, location.longitude)
+            } else {
+                // GPS unavailable (services off, no signal, etc.) — show last city instead
+                // so the screen isn't left blank after a permission grant.
+                viewModel.autoLoadLastCity()
             }
-            // null means location services are off or no fix was available.
-            // Fail silently — the search screen is still usable.
         }
     }
 }
