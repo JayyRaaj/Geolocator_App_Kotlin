@@ -107,6 +107,14 @@ class WeatherViewModel(
         }
     }
 
+    /**
+     * Navigates back to the search screen from any state.
+     * Called when the user presses back or taps "Search again" on the detail screen.
+     */
+    fun resetToSearch() {
+        _uiState.value = WeatherUiState.Idle
+    }
+
     // --- Factory ------------------------------------------------------------------
 
     /**
