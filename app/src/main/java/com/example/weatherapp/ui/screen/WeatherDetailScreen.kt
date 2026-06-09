@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.weatherapp.data.model.WeatherResponse
 import com.example.weatherapp.data.model.Wind
@@ -120,7 +121,9 @@ fun WeatherDetailScreen(
                 text = "${weather.cityName}, ${weather.countryCode}",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
 
             Text(
@@ -330,7 +333,9 @@ private fun formatTime(timestamp: Long): String =
  * Example outputs: "4.2 m/s NE", "1.5 m/s" (when direction is absent).
  */
 private fun formatWind(wind: Wind): String {
-    val speed = "%.1f m/s".format(wind.speedMps)
+    // Locale.ROOT ensures "4.2 m/s" regardless of the device's regional settings
+    // (some locales use a comma as the decimal separator).
+    val speed = "%.1f m/s".format(Locale.ROOT, wind.speedMps)
     val cardinal = wind.directionDeg?.let { " ${degreesToCardinal(it)}" }.orEmpty()
     return "$speed$cardinal"
 }

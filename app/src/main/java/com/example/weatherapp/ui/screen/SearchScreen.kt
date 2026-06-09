@@ -1,5 +1,6 @@
 package com.example.weatherapp.ui.screen
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -76,13 +78,15 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Respect status bar, navigation bar, and display cutouts (edge-to-edge is on)
+            .safeDrawingPadding()
             .padding(horizontal = 24.dp)
             // Scrollable so the error card is accessible on small screens / with keyboard open
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Push content down to roughly the upper-third of the screen
-        Spacer(modifier = Modifier.height(96.dp))
+        // Spacer after system-bar padding so the title sits in the upper third
+        Spacer(modifier = Modifier.height(48.dp))
 
         // ── App title ──────────────────────────────────────────────────────
         Text(

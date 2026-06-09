@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Legacy launcher icon for API 24–25 (before adaptive icons).
+    Uses a layer-list so the same foreground vector sits on the blue background.
+    Replace with density-specific PNGs generated via Android Studio → New → Image Asset
+    for best quality on older devices.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ic_launcher_background" />
+        </shape>
+    </item>
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>

@@ -135,7 +135,12 @@ class WeatherViewModel(
         viewModelScope.launch {
             _uiState.value = WeatherUiState.Loading
             _uiState.value = when (val result = repository.getWeatherByCoordinates(lat, lon)) {
-                is NetworkResult.Success -> WeatherUiState.Success(result.data)
+                is NetworkResult.Success -> {
+                    // Save the API-resolved city name so the next launch shows this city
+                    // while a fresh GPS fix is being obtained.
+                    prefsHelper.saveLastCity(result.data.cityName)
+                    WeatherUiState.Success(result.data)
+                }
                 is NetworkResult.Error   -> WeatherUiState.Error(result.message)
                 is NetworkResult.Loading -> WeatherUiState.Loading
             }
