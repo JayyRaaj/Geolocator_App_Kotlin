@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,12 +51,13 @@ import com.example.weatherapp.ui.viewmodel.WeatherUiState
  * [WeatherUiState.Success] is never passed here — [com.example.weatherapp.WeatherApp]
  * routes that state to [WeatherDetailScreen] instead.
  *
- * @param uiState                    Current state from the ViewModel.
- * @param searchQuery                Current text in the search field.
- * @param onQueryChange              Called on every keystroke.
- * @param onSearch                   Called when the user submits a search.
+ * @param uiState                     Current state from the ViewModel.
+ * @param searchQuery                 Current text in the search field.
+ * @param onQueryChange               Called on every keystroke.
+ * @param onSearch                    Called when the user submits a search.
  * @param onRequestLocationPermission Triggers the system location permission dialog.
- * @param onDismissError             Resets state to Idle after an error is shown.
+ * @param onDismissError              Resets state to Idle after an error is shown.
+ * @param onRetry                     Replays the last search — shown as a button in the error card.
  */
 @Composable
 fun SearchScreen(
@@ -64,7 +66,8 @@ fun SearchScreen(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onRequestLocationPermission: () -> Unit,
-    onDismissError: () -> Unit
+    onDismissError: () -> Unit,
+    onRetry: () -> Unit
 ) {
     val isLoading = uiState is WeatherUiState.Loading
     val errorMessage = (uiState as? WeatherUiState.Error)?.message
@@ -189,7 +192,8 @@ fun SearchScreen(
             Spacer(modifier = Modifier.height(24.dp))
             SearchErrorCard(
                 message = errorMessage,
-                onDismiss = onDismissError
+                onDismiss = onDismissError,
+                onRetry = onRetry
             )
         }
 
@@ -208,11 +212,15 @@ fun SearchScreen(
  * Chose an inline card over a Snackbar because:
  *  - It stays visible until explicitly dismissed (Snackbar auto-hides).
  *  - It's easier to notice on screens where the keyboard is closed.
+ *
+ * The Retry button replays the last search so the user doesn't have to retype.
+ * The Dismiss button clears the error and returns to Idle.
  */
 @Composable
 private fun SearchErrorCard(
     message: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -220,10 +228,11 @@ private fun SearchErrorCard(
             containerColor = MaterialTheme.colorScheme.errorContainer
         )
     ) {
+        // Error message row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -251,6 +260,28 @@ private fun SearchErrorCard(
                     contentDescription = "Dismiss error",
                     tint = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        // Action buttons row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Dismiss",
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = onRetry) {
+                Text(
+                    text = "Retry",
+                    color = MaterialTheme.colorScheme.error
                 )
             }
         }

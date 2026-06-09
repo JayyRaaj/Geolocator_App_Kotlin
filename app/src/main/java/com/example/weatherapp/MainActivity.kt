@@ -158,7 +158,8 @@ fun WeatherApp(
                     onQueryChange = viewModel::onSearchQueryChange,
                     onSearch = { viewModel.searchByCity() },
                     onRequestLocationPermission = onRequestLocationPermission,
-                    onDismissError = { viewModel.clearError() }
+                    onDismissError = { viewModel.clearError() },
+                    onRetry = { viewModel.retry() }
                 )
             }
         }

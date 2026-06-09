@@ -2,7 +2,9 @@ package com.example.weatherapp.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.weatherapp.data.model.NetworkResult
 import com.example.weatherapp.data.repository.WeatherRepository
 import com.example.weatherapp.data.repository.WeatherRepositoryImpl
@@ -42,11 +44,23 @@ class WeatherViewModel(
      */
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    // --- Last search (for retry) --------------------------------------------------
+
+    /**
+     * Tracks the most recent search so [retry] can replay it exactly.
+     * Sealed so we know whether to re-search by city or by coordinates.
+     */
+    private sealed class LastSearch {
+        data class ByCity(val city: String) : LastSearch()
+        data class ByCoordinates(val lat: Double, val lon: Double) : LastSearch()
+    }
+
+    private var lastSearch: LastSearch? = null
+
     // --- Public actions -----------------------------------------------------------
 
     /**
      * Updates the search field text. Called on every keystroke from the UI.
-     *
      * Does not trigger a network call — the user must submit explicitly.
      */
     fun onSearchQueryChange(query: String) {
@@ -59,15 +73,15 @@ class WeatherViewModel(
      * Trims whitespace and silently ignores blank input so the UI doesn't
      * need to guard against accidental empty submissions.
      *
-     * @param city City name (e.g. "Tokyo"). Uses [searchQuery] if blank.
+     * @param city City name (e.g. "Tokyo"). Defaults to the current [searchQuery] value
+     *             so callers that auto-load a saved city don't have to touch the field.
      */
     fun searchByCity(city: String = _searchQuery.value) {
         val trimmed = city.trim()
         if (trimmed.isEmpty()) return
 
-        // Keep the query field in sync in case the caller passed a city directly
-        // (e.g. when auto-loading the last searched city on app launch).
         _searchQuery.value = trimmed
+        lastSearch = LastSearch.ByCity(trimmed)
 
         viewModelScope.launch {
             _uiState.value = WeatherUiState.Loading
@@ -87,6 +101,8 @@ class WeatherViewModel(
      * @param lon Longitude in decimal degrees.
      */
     fun searchByCoordinates(lat: Double, lon: Double) {
+        lastSearch = LastSearch.ByCoordinates(lat, lon)
+
         viewModelScope.launch {
             _uiState.value = WeatherUiState.Loading
             _uiState.value = when (val result = repository.getWeatherByCoordinates(lat, lon)) {
@@ -94,6 +110,18 @@ class WeatherViewModel(
                 is NetworkResult.Error   -> WeatherUiState.Error(result.message)
                 is NetworkResult.Loading -> WeatherUiState.Loading
             }
+        }
+    }
+
+    /**
+     * Replays the most recent search — useful after a network error.
+     * Does nothing if no search has been made yet in this session.
+     */
+    fun retry() {
+        when (val last = lastSearch) {
+            is LastSearch.ByCity        -> searchByCity(last.city)
+            is LastSearch.ByCoordinates -> searchByCoordinates(last.lat, last.lon)
+            null                        -> { /* no previous search to replay */ }
         }
     }
 
@@ -117,23 +145,25 @@ class WeatherViewModel(
 
     // --- Factory ------------------------------------------------------------------
 
-    /**
-     * [ViewModelProvider.Factory] that constructs a [WeatherViewModel] wired to the
-     * live repository.
-     *
-     * Usage in an Activity/Fragment:
-     * ```
-     * val viewModel: WeatherViewModel by viewModels { WeatherViewModel.Factory }
-     * ```
-     *
-     * TODO: replace with @HiltViewModel + hiltViewModel() when DI is added.
-     */
     companion object {
+        /**
+         * [ViewModelProvider.Factory] that constructs a [WeatherViewModel] wired to the
+         * live repository.
+         *
+         * Uses [CreationExtras] + [APPLICATION_KEY] to get the Application context without
+         * making WeatherViewModel extend AndroidViewModel — keeps the ViewModel pure and
+         * easier to test.
+         *
+         * TODO: replace with @HiltViewModel + hiltViewModel() when DI is added.
+         */
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+                val application = checkNotNull(extras[APPLICATION_KEY]) {
+                    "WeatherViewModel.Factory requires APPLICATION_KEY in CreationExtras"
+                }
                 if (modelClass.isAssignableFrom(WeatherViewModel::class.java)) {
-                    return WeatherViewModel(WeatherRepositoryImpl.create()) as T
+                    return WeatherViewModel(WeatherRepositoryImpl.create(application)) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
